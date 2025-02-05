@@ -1,0 +1,26 @@
+
+[tool.ruff]
+
+ignore = [
+	"F403",
+	"E701",
+]
+
+line-length = 100
+
+[tool.mypy]
+
+ignore_missing_imports = true
+
+[tool.poetry]
+
+name = "pcc"
+version = "0.0.0"
+description = "A MCDR plugin allows you send MCDR commands privately"
+authors = [
+	"zyxkad"
+]
+readme = "README.MD"
+
+[tool.poetry.dependencies]
+python = "^3.11"

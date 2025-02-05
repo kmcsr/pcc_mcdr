@@ -1,0 +1,15 @@
+
+# Mac OS
+.DS_Store
+
+# outputs
+/output/
+/dist/
+/_test/
+
+# caches
+__pycache__
+.*_cache
+
+# workspace
+*.sublime-workspace
