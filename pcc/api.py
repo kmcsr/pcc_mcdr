@@ -5,8 +5,9 @@ from mcdreforged.utils import class_utils
 
 import loginproxy
 
-from .utils import *
+from .configs import *
 from .nodes import *
+from .utils import *
 
 def on_load(server: MCDR.PluginServerInterface):
 	server.register_event_listener(loginproxy.ON_POSTLOGIN, login_listener)
@@ -21,13 +22,13 @@ def login_listener(server: MCDR.PluginServerInterface, conn: loginproxy.Conn):
 def c2s_packet_listener(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, packet: loginproxy.PacketReader, cancel):
 	if conn.protocol < loginproxy.Protocol.V1_19_2:
 		return
-	if packet.id == 0x04:
+	if packet.id == 0x04: # Chat Command
 		handle_command_packet(server, conn, packet, cancel)
-	elif packet.id == 0x05:
+	elif packet.id == 0x05: # Chat Message
 		handle_chat_packet(server, conn, packet, cancel)
-	elif packet.id == 0x06:
+	elif packet.id == 0x06: # Chat Preview
 		handle_chat_preview(server, conn, packet, cancel)
-	elif packet.id == 0x09:
+	elif packet.id == 0x09: # Command Suggestions Request
 		handle_command_suggestion_packet(server, conn, packet, cancel)
 
 def s2c_packet_listener(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, packet: loginproxy.PacketReader, cancel):
@@ -37,37 +38,35 @@ def s2c_packet_listener(server: MCDR.PluginServerInterface, conn: loginproxy.Con
 		log_warn('server sent chat suggestion packet')
 	elif packet.id == 0x0f: # Commands
 		handle_command_nodes(server, conn, packet, cancel)
-	elif packet.id == 0x42:
-		has_motd = packet.read_bool()
-		motd = packet.read_string() if has_motd else None
-		has_icon = packet.read_bool()
-		icon = packet.read_string() if has_icon else None
-		preview_chat = packet.read_bool()
-		enforce_secure = packet.read_bool()
-
-		preview_chat = True
-
-		buf = loginproxy.PacketBuffer()
-		buf.write_varint(packet.id)
-		buf.write_bool(has_motd)
-		if motd is not None:
-			buf.write_string(motd)
-		buf.write_bool(has_icon)
-		if icon is not None:
-			buf.write_string(icon)
-		buf.write_bool(preview_chat)
-		buf.write_bool(enforce_secure)
-		cancel(buf.data)
+	elif packet.id == 0x42: # Server Data
+		handle_server_data(server, conn, packet, cancel)
 
 def handle_command_packet(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, packet: loginproxy.PacketReader, cancel):
+	cfg = get_config()
+	if not cfg.register_vanilla_command:
+		return
 	text = packet.read_string()
 	handle_text_packet(server, conn, text, cancel)
 
 def handle_chat_packet(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, packet: loginproxy.PacketReader, cancel):
+	cfg = get_config()
+	if not cfg.proxy_mcdr_chat_command:
+		return
 	text = packet.read_string()
 	handle_text_packet(server, conn, text, cancel)
 
+def handle_text_packet(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, text: str, cancel):
+	cfg = get_config()
+	if not text.startswith('!!'):
+		return
+	source = PacketCommandSource(server._mcdr_server, conn.name, text)
+	server.execute_command(text, source)
+	cancel()
+
 def handle_chat_preview(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, packet: loginproxy.PacketReader, cancel):
+	cfg = get_config()
+	if not cfg.chat_preview_suggestion:
+		return
 	cancel()
 	qid = packet.read_int()
 	text = packet.read_string()
@@ -95,14 +94,11 @@ def handle_chat_preview(server: MCDR.PluginServerInterface, conn: loginproxy.Con
 		buf.write_string(suggest.suggest_input)
 	conn.send_client(buf.data)
 
-def handle_text_packet(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, text: str, cancel):
-	if not text.startswith('!!'):
-		return
-	source = PacketCommandSource(server._mcdr_server, conn.name, text)
-	server.execute_command(text, source)
-	cancel()
-
 def handle_command_suggestion_packet(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, packet: loginproxy.PacketReader, cancel):
+	cfg = get_config()
+	if not cfg.register_vanilla_command:
+		return
+
 	tid = packet.read_varint()
 	text = packet.read_string()
 	begin = 0
@@ -130,6 +126,10 @@ def handle_command_suggestion_packet(server: MCDR.PluginServerInterface, conn: l
 	conn.send_client(response.data)
 
 def handle_command_nodes(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, packet: loginproxy.PacketReader, cancel):
+	cfg = get_config()
+	if not cfg.register_vanilla_command:
+		return
+
 	count = packet.read_varint()
 	nodes = []
 	for i in range(count):
@@ -151,6 +151,32 @@ def handle_command_nodes(server: MCDR.PluginServerInterface, conn: loginproxy.Co
 	buf.write_varint(root_index)
 	conn.send_client(buf.data)
 	cancel()
+
+def handle_server_data(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, packet: loginproxy.PacketReader, cancel):
+	cfg = get_config()
+	if cfg.chat_preview_suggestion:
+		return
+
+	has_motd = packet.read_bool()
+	motd = packet.read_string() if has_motd else None
+	has_icon = packet.read_bool()
+	icon = packet.read_string() if has_icon else None
+	preview_chat = packet.read_bool()
+	enforce_secure = packet.read_bool()
+
+	preview_chat = True
+
+	buf = loginproxy.PacketBuffer()
+	buf.write_varint(packet.id)
+	buf.write_bool(has_motd)
+	if motd is not None:
+		buf.write_string(motd)
+	buf.write_bool(has_icon)
+	if icon is not None:
+		buf.write_string(icon)
+	buf.write_bool(preview_chat)
+	buf.write_bool(enforce_secure)
+	cancel(buf.data)
 
 class PacketCommandSource(MCDR.PlayerCommandSource):
 	def __init__(self, mcdr_server, player: str, chat: str):
