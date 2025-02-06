@@ -1,15 +1,19 @@
 {
 	"id": "pcc",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"name": "ProxiedChatConnection",
 	"author": [
 		"zyxkad"
 	],
-	"description": "A MCDR plugin allows you send MCDR commands privately",
+	"description": {
+		"en_us": "A MCDR plugin allows you send MCDR commands privately with autocomplete feature",
+    "zh_cn": "一个允许你默默发送以及自动补全MCDR指令的插件"
+  },
 	"link": "https://github.com/kmcsr/pcc_mcdr",
 	"dependencies": {
 		"mcdreforged": "^2.14.0",
-		"loginproxy": ">=0.6.12"
+    "kpi": "~1.5.1",
+		"loginproxy": "~0.7.3"
 	},
 	"resources": [
 		"LICENSE",

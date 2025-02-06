@@ -10,7 +10,9 @@ line-length = 100
 
 [tool.mypy]
 
+mypy_path = "${MYPY_CONFIG_FILE_DIR}/../kpi_mcdr/:${MYPY_CONFIG_FILE_DIR}/../login_proxy_mcdr/"
 ignore_missing_imports = true
+disable_error_code = ['misc']
 
 [tool.poetry]
 
