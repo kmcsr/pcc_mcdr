@@ -9,7 +9,9 @@
 
 需要将 `loginproxy/config.json` 下的 `enable_packet_proxy` 选项设为 `true`
 
-仅支持 1.19.2, 高版本开发中
+不支持小于 1.19.2 的版本
+
+实测 1.19.2, 1.21.1 可用, 其他版本未知
 
 ## 依赖
 

@@ -9,7 +9,9 @@ It also support to autocomplete MCDR commands in game without any mods install i
 
 Require `enable_packet_proxy` set to `true` in `loginproxy/config.json`
 
-Only support 1.19.2 atm
+Does not support Minecraft earier than 1.19.2.
+
+Tested version: 1.19.2, 1.21.1
 
 ## Dependencies
 
