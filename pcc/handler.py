@@ -40,7 +40,7 @@ def handle_text_packet(server: MCDR.PluginServerInterface, event: loginproxy.Pac
 	if not text.startswith('!!'):
 		return
 	log_info(f'Player {repr(event.player)} executing command:', text)
-	source = PacketCommandSource(server._mcdr_server, event.player, text)
+	source = PacketCommandSource(server._mcdr_server, event.conn, text)
 	server.execute_command(text, source)
 	event.cancel()
 
@@ -65,7 +65,7 @@ def handle_chat_preview(server: MCDR.PluginServerInterface, event: loginproxy.Pa
 		return
 
 	command_manager = server._mcdr_server.command_manager
-	source = PacketCommandSource(server._mcdr_server, event.player, text)
+	source = PacketCommandSource(server._mcdr_server, event.conn, text)
 	suggestions = command_manager.suggest_command(text + ' ', source)
 
 	buf = conn.new_packet('play_chat_suggestions').\
@@ -89,7 +89,7 @@ def handle_command_suggestions_request(server: MCDR.PluginServerInterface, event
 	event.cancel()
 
 	command_manager = server._mcdr_server.command_manager
-	source = PacketCommandSource(server._mcdr_server, event.player, text)
+	source = PacketCommandSource(server._mcdr_server, event.conn, text)
 	suggestions = command_manager.suggest_command(text, source)
 
 	min_existed = min(len(suggest.existed_input) for suggest in suggestions) if len(suggestions) > 0 else len(text)
