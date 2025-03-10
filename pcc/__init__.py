@@ -15,3 +15,4 @@ def on_load(server: MCDR.PluginServerInterface, prev_module):
 
 def on_unload(server: MCDR.PluginServerInterface):
 	log_info('ProxiedChatConnection is on UNLOAD')
+	api.on_unload(server)

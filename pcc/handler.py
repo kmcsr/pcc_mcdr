@@ -1,5 +1,7 @@
 
 import mcdreforged.api.all as MCDR
+from mcdreforged.command.command_manager import CommandManager
+from mcdreforged.plugin.plugin_registry import PluginCommandHolder
 
 import loginproxy
 from packet_parser.commandnode import Node, NodeStringProp
@@ -9,8 +11,62 @@ from .source import *
 from .utils import *
 
 __all__ = [
+	'on_command_updated',
 	'login_listener',
 ]
+
+class CommandStorage:
+	_nodes: list[Node]
+	root: int
+
+	def __init__(self, nodes: list[Node], root: int):
+		self._nodes = nodes.copy()
+		self.root = root
+
+	def get_nodes(self) -> list[Node]:
+		return [Node(n.protocol, n.flags, n.children.copy(), n.redirect_node, n.name, n.parser_id, n.properties, n.suggestions_type) for n in self._nodes]
+
+mcdr_root_commands: dict[str, list[PluginCommandHolder]] = {}
+mcdr_root_nodes: dict[int, list[tuple[Node, list[Node]]]] | None = None
+
+def on_command_updated(server: MCDR.PluginServerInterface, command_manager: CommandManager):
+	global mcdr_root_commands
+	mcdr_root_commands = command_manager.root_nodes
+	rebuild_mcdr_command_nodes()
+
+	proxy = loginproxy.get_proxy()
+	for conn in proxy.get_conns():
+		refresh_commands(conn)
+
+def rebuild_mcdr_command_nodes() -> None:
+	global mcdr_root_nodes
+	mcdr_root_nodes = None
+	root_nodes: dict[int, list[tuple[Node, list[Node]]]] = {}
+	protocols = set(conn.protocol for conn in loginproxy.get_proxy().get_conns())
+	for protocol in protocols:
+		root_nodes[protocol] = build_mcdr_root_nodes(protocol)
+	mcdr_root_nodes = root_nodes
+
+def build_mcdr_root_nodes(protocol: int) -> list[tuple[Node, list[Node]]]:
+	global mcdr_root_commands
+	root_nodes: list[tuple[Node, list[Node]]] = []
+	for name, holders in mcdr_root_commands.items():
+		node: Node | None = None
+		children: list[Node] = []
+		for holder in holders:
+			node = build_mcdr_node(protocol, name, holder.node, node, children)
+			if not holder.allow_duplicates:
+				break
+		if node is not None:
+			root_nodes.append((node, children))
+	return root_nodes
+
+def build_mcdr_node(protocol: int, name: str, root: MCDR.Literal, node: Node | None, children: list[Node]) -> Node:
+	if node is None:
+		node = Node(protocol, Node.LITERAL | Node.EXECUTABLE_FLAG, [], None, name, None, None, None)
+		arg_node = Node(protocol, Node.ARGUMENT | Node.EXECUTABLE_FLAG | Node.SUGGESTIONS_FLAG, [], None, 'args...', 5, NodeStringProp.GREEDY_PHRASE, 'minecraft:ask_server')
+		children.append(arg_node)
+	return node
 
 def login_listener(server: MCDR.PluginServerInterface, conn: loginproxy.Conn, cancel):
 	if conn.protocol < loginproxy.Protocol.V1_19_2:
@@ -107,27 +163,44 @@ def handle_command_suggestions_request(server: MCDR.PluginServerInterface, event
 def handle_commands(server: MCDR.PluginServerInterface, event: loginproxy.PacketEvent):
 	event.cancel()
 
+	conn = event.conn
 	packet = event.reader
 	count = packet.read_varint()
 	nodes = []
 	for i in range(count):
 		nodes.append(Node.parse_from(event.conn.protocol, packet))
 	root_index = packet.read_varint()
+
+	conn._custom_data['commands'] = CommandStorage(nodes, root_index)
+	refresh_commands(conn)
+
+def refresh_commands(conn: loginproxy.Conn):
+	global mcdr_root_nodes
+	if mcdr_root_nodes is None:
+		return
+	mcdr_roots = mcdr_root_nodes.get(conn.protocol, None)
+	if mcdr_roots is None:
+		new_thread(rebuild_mcdr_command_nodes)()
+		return
+
+	storage: CommandStorage = conn._custom_data['commands']
+	nodes = storage.get_nodes()
+	root_index = storage.root
 	root_node = nodes[root_index]
-	def add_root_node(node: Node):
+
+	for node, children in mcdr_roots:
 		root_node.children.append(len(nodes))
 		nodes.append(node)
+		for child in children:
+			node.children.append(len(nodes))
+			nodes.append(node)
 
-	node_mcdr = Node(event.conn.protocol, 0x02 | 0x04 | 0x10, [], None, '!!MCDR-commands', 5, NodeStringProp.GREEDY_PHRASE, 'minecraft:ask_server')
-	add_root_node(node_mcdr)
-
-	buf = loginproxy.PacketBuffer()
-	buf.write_varint(packet.id)
+	buf = conn.new_packet('play_commands')
 	buf.write_varint(len(nodes))
 	for n in nodes:
 		n.write_to(buf)
 	buf.write_varint(root_index)
-	event.conn.send_client(buf.data)
+	buf.send()
 
 def handle_server_data(server: MCDR.PluginServerInterface, event: loginproxy.PacketEvent):
 	event.cancel()
