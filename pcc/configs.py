@@ -18,9 +18,9 @@ BIG_BLOCK_AFTER = LazyData(lambda data:
 	MCDR.RText(':::: {0} v{1} ============'.format(data.name, data.version), color=MCDR.RColor.aqua))
 
 class PCCConfig(Config, msg_id=MSG_ID):
-	# # 0:guest 1:user 2:helper 3:admin 4:owner
-	# class minimum_permission_level(JSONObject):
-	# 	list: int = 1
+	# 0:guest 1:user 2:helper 3:admin 4:owner
+	class minimum_permission_level(JSONObject):
+		pass
 
 	register_vanilla_command: bool = True
 	proxy_mcdr_chat_command: bool = True
