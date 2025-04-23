@@ -1,6 +1,6 @@
 {
 	"id": "pcc",
-	"version": "0.3.4",
+	"version": "0.3.5",
 	"name": "ProxiedChatConnection",
 	"author": [
 		"zyxkad"
@@ -13,7 +13,7 @@
 	"dependencies": {
 		"mcdreforged": "^2.14.0",
 		"kpi": "~1.5.1",
-		"loginproxy": "~0.8.7",
+		"loginproxy": "~0.9.0",
 		"packet_parser": "~0.0.3"
 	},
 	"resources": [
